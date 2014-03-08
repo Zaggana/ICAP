@@ -195,32 +195,10 @@ namespace TrustICAPWebService
 
                         //PSAXNOUME STO INFO
                         con_trust.Open();
-                        cmd = new SqlCommand("REALCHECK_PERSON_COMPANY_EXISTS_VODAFONE8", con_trust);
+                        cmd = new SqlCommand("REALCHECK_CMAPPL_VODAFONE3", con_trust);
                         cmd.CommandType = CommandType.StoredProcedure;
                         SqlDataReader READER = null;
-                        // If companyname <> "" Then
-                        cmd.Parameters.Add(new SqlParameter("@PRS_CMP_COMPANY_NAME", companyname));
-                        // End If
-                        if (!string.IsNullOrEmpty(firstname))
-                        {
-                            cmd.Parameters.Add(new SqlParameter("@PRS_CMP_FIRSTNAME", firstname));
-                        }
-                        if (!string.IsNullOrEmpty(lastname))
-                        {
-                            cmd.Parameters.Add(new SqlParameter("@PRS_CMP_LASTNAME", lastname));
-                        }
-                        if (!string.IsNullOrEmpty(fathername))
-                        {
-                            cmd.Parameters.Add(new SqlParameter("@PRS_CMP_FATHER_FIRSTNAME", fathername));
-                        }
-                        if (!string.IsNullOrEmpty(IDCARD))
-                        {
-                            cmd.Parameters.Add(new SqlParameter("@PRS_CMP_IDENTIFICATION_CARD", IDCARD));
-                        }
-                        if (!string.IsNullOrEmpty(TAXNUMBER))
-                        {
-                            cmd.Parameters.Add(new SqlParameter("@PRS_CMP_AFM", TAXNUMBER));
-                        }
+                        cmd.Parameters.Add(new SqlParameter("@PRS_CMP_AFM", TAXNUMBER));
                         XmlElement xmlresponse = null;
                         xmlresponse = doc_out.CreateElement("EntityDetrimentalData");
 
@@ -391,7 +369,7 @@ namespace TrustICAPWebService
         {
             // Return a file name to log the trace information to, based on the
             // type.
-            return "C:\\inetpub\\wwwroot\\testvodafonewebservice\\" + WebServiceType.FullName + ".log";
+            return System.Configuration.ConfigurationManager.AppSettings["logsPath"] +"\\" + WebServiceType.FullName + ".log";
         }
 
         // Receive the file name stored by GetInitializer and store it in a
@@ -467,7 +445,7 @@ namespace TrustICAPWebService
     public class TraceExtensionAttribute : SoapExtensionAttribute
     {
 
-        private string m_filename = "C:\\inetpub\\wwwroot\\cosmotewebservicerate\\log.txt";
+        private string m_filename = System.Configuration.ConfigurationManager.AppSettings["logsPath"] + "\\log.txt";
 
         private int m_priority;
         public override Type ExtensionType
