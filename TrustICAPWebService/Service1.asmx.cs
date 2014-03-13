@@ -27,10 +27,13 @@ namespace TrustICAPWebService
         public XmlDocument SendQuestion(string sInput)
         {
             //kanoume to authentication gia to service
-            ServiceAuthHeaderValidation.Validate(CustomSoapHeader);
+           ServiceAuthHeaderValidation.Validate(CustomSoapHeader);
 
             string username = null;
             string password = null;
+            string prefix = null;
+            string NamspaceURI = null;
+
             XmlDocument doc = new XmlDocument();
             XmlDocument doc_out = new XmlDocument();
             string con_string = WebConfigurationManager.ConnectionStrings["ConnectionString"].ConnectionString;
@@ -47,22 +50,23 @@ namespace TrustICAPWebService
 
                 doc.LoadXml(sInput);
                 //diavazoume ta username password gia kathe customer
-                XmlNode n = doc.SelectSingleNode("//XML").FirstChild;
-                username = n.Attributes["username"].Value.ToString();
-                password = n.Attributes["password"].Value.ToString();
 
+                username = System.Configuration.ConfigurationManager.AppSettings["username"];
+                password = System.Configuration.ConfigurationManager.AppSettings["password"];
+                prefix = System.Configuration.ConfigurationManager.AppSettings["prefix"];
+                NamspaceURI = System.Configuration.ConfigurationManager.AppSettings["NamspaceURI"];
                 //FTIAXNOUME TO XML_EKSODOU
                 XmlDeclaration xmldeclaration = null;
                 xmldeclaration = doc_out.CreateXmlDeclaration("1.0", "utf-8", null);
                 doc_out.InsertBefore(xmldeclaration, doc_out.DocumentElement);
+                XmlAttribute attr1 = doc_out.CreateAttribute("xmlns:"+prefix);
 
+                attr1.Value = NamspaceURI;
                 XmlElement root_element = null;
-                XmlElement pr_cmps = null;
-                root_element = doc_out.CreateElement("XML");
-                doc_out.InsertAfter(root_element, xmldeclaration);
-                pr_cmps = doc_out.CreateElement("PERSONCOMPANIES");
-                root_element.AppendChild(pr_cmps);
-
+                root_element = doc_out.CreateElement(prefix, "EntityDetrimentalData", NamspaceURI);
+                doc_out.InsertAfter(root_element, xmldeclaration);                
+                doc_out.DocumentElement.Attributes.Append(attr1);
+               
 
                 //VRISKOUME TO PELATH POU KANEI TO ERWTHMA
                 SqlCommand cmd = null;
@@ -72,12 +76,13 @@ namespace TrustICAPWebService
                 cmd.Parameters.Add(new SqlParameter("@CUSTOMER_PASSWORD", password));
                 SqlParameter ID_PARAM = new SqlParameter("@CUSTOMER_ID", 0);
                 ID_PARAM.Direction = ParameterDirection.Output;
+                ID_PARAM.SqlDbType = SqlDbType.Int;
                 cmd.Parameters.Add(ID_PARAM);
                 int CUSTOMER_ID = 0;
 
                 con.Open();
                 cmd.ExecuteNonQuery();
-                CUSTOMER_ID = (int)cmd.Parameters["@CUSTOMER_ID"].Value;
+                CUSTOMER_ID = (int)ID_PARAM.Value;
                 con.Close();
 
                 //AN VRETHEI O PELATHS DIAVAZOUME TA STOIXEIA TOU ERWTHMATOS
@@ -94,16 +99,6 @@ namespace TrustICAPWebService
                         doc1.LoadXml(NODE.InnerXml);
                         int QUESTION_ID = 0;
                         string personcompanyid = doc1.SelectSingleNode("PERSONCOMPANY/PERSONCOMPANYID").InnerXml;
-
-                        //PROETOIMASIA APANTHSHS
-                        XmlElement prcmp = null;
-                        prcmp = doc_out.CreateElement("PERSONCOMPANY");
-
-                        XmlElement xmlpr_cmpid = null;
-                        xmlpr_cmpid = doc_out.CreateElement("PERSONCOMPANYID");
-                        xmlpr_cmpid.InnerText = personcompanyid;
-                        prcmp.AppendChild(xmlpr_cmpid);
-                        pr_cmps.AppendChild(prcmp);
 
                         string lastname = doc1.SelectSingleNode("PERSONCOMPANY/LASTNAME").InnerXml;
                         string firstname = doc1.SelectSingleNode("PERSONCOMPANY/FIRSTNAME").InnerXml;
@@ -134,6 +129,7 @@ namespace TrustICAPWebService
                         cmd.CommandType = CommandType.StoredProcedure;
                         SqlParameter ID_PARAM_QUESTION = new SqlParameter("@QUESTION_ID", 0);
                         ID_PARAM_QUESTION.Direction = ParameterDirection.Output;
+                        ID_PARAM_QUESTION.SqlDbType = SqlDbType.Int;
                         cmd.Parameters.Add(ID_PARAM_QUESTION);
                         if (!string.IsNullOrEmpty(personcompanyid))
                         {
@@ -188,91 +184,99 @@ namespace TrustICAPWebService
 
 
                         cmd.ExecuteNonQuery();
-                        QUESTION_ID = (int)cmd.Parameters["@QUESTION_ID"].Value;
+                        QUESTION_ID = (int) ID_PARAM_QUESTION.Value;
 
                         con.Close();
 
+                        //PROETOIMASIA APANTHSHS
+                      
+                        XmlElement xmlpr_cmpname = null;
+                        xmlpr_cmpname = doc_out.CreateElement(prefix, "entityName", NamspaceURI);
+                        XmlElement xmlpr_cmptype = null;
+                        xmlpr_cmptype = doc_out.CreateElement(prefix, "entityType", NamspaceURI);
+                        XmlElement xmlpr_vat = null;
+                        xmlpr_vat = doc_out.CreateElement(prefix,"vatNumber",NamspaceURI);
 
                         //PSAXNOUME STO INFO
                         con_trust.Open();
+                        //Vriskoume ta Details tou Company
+                        cmd = new SqlCommand("SELECT TOP 1  PRS_CMP_ID, CASE WHEN PRS_CMP_IS_COMPANY = 1 THEN 'COMPANY' ELSE 'INDIVIDUAL' END AS PRS_CMP_TYPE, (PRS_CMP_LASTNAME +' ' + PRS_CMP_FIRSTNAME )AS PRS_CMP_FULLNAME, PRS_CMP_COMPANY_NAME FROM    PERSON_COMPANY                     WHERE   PRS_CMP_AFM = '" + TAXNUMBER + "' AND PRS_CMP_ACTIVE = 1 AND PRS_CMP_NOVIEW = 0 AND PRS_CMP_RATED = 1 ", con_trust);
+                        cmd.CommandType = CommandType.Text;
+                        SqlDataReader read_rd;
+                        output = "False";
+                        read_rd = cmd.ExecuteReader();
+                        if (read_rd.HasRows)
+                        {
+                            while (read_rd.Read())
+                            {
+                                xmlpr_cmpname.InnerText = read_rd["PRS_CMP_FULLNAME"].ToString() + read_rd["PRS_CMP_COMPANY_NAME"].ToString();
+                                xmlpr_cmptype.InnerText = read_rd["PRS_CMP_TYPE"].ToString();
+                                xmlpr_vat.InnerText = TAXNUMBER;
+                            }
+                        }
+                        read_rd.Close();
+
+                        root_element.AppendChild(xmlpr_cmptype);                   
+                        root_element.AppendChild(xmlpr_vat);
+                        root_element.AppendChild(xmlpr_cmpname);
+
                         cmd = new SqlCommand("REALCHECK_CMAPPL_VODAFONE3", con_trust);
                         cmd.CommandType = CommandType.StoredProcedure;
                         SqlDataReader READER = null;
                         cmd.Parameters.Add(new SqlParameter("@PRS_CMP_AFM", TAXNUMBER));
-                        XmlElement xmlresponse = null;
-                        xmlresponse = doc_out.CreateElement("EntityDetrimentalData");
+                        
 
                         READER = cmd.ExecuteReader();
                         while (READER.Read())
                         {
-                            output = READER["RESPONSE"].ToString();
+                            output = "True";
+                            XmlElement xmlresponse = null;
+                            xmlresponse = doc_out.CreateElement(prefix,"EntityDetrimentalRecord",NamspaceURI);
 
+                            XmlElement detrimentalType = null;
+                            detrimentalType = doc_out.CreateElement(prefix,"detrimentalType",NamspaceURI);
+                            detrimentalType.InnerText = READER["TRCS_INFO_CATEGORY"].ToString();
+                            xmlresponse.AppendChild(detrimentalType);
+
+                            XmlElement detrimentalYear = null;
+                            detrimentalYear = doc_out.CreateElement(prefix,"detrimentalYear",NamspaceURI);
+                            detrimentalYear.InnerText = READER["TRCS_INFO_DATE_YEAR"].ToString();
+                            xmlresponse.AppendChild(detrimentalYear);
+
+                            XmlElement detrimentalItems = null;
+                            detrimentalItems = doc_out.CreateElement(prefix, "detrimentalItems", NamspaceURI);
+                            detrimentalItems.InnerText = READER["TRCS_COUNTOF_ACTIVE"].ToString();
+                            xmlresponse.AppendChild(detrimentalItems);
+
+                            XmlElement detrimentalValue = null;
+                            detrimentalValue = doc_out.CreateElement(prefix, "detrimentalValue", NamspaceURI);
+                            detrimentalValue.InnerText = READER["TRCS_SUMOF_ACTIVE"].ToString();
+                            xmlresponse.AppendChild(detrimentalValue);
+
+                            XmlElement detrimentalSettledItems = null;
+                            detrimentalSettledItems = doc_out.CreateElement(prefix, "detrimentalSettledItems", NamspaceURI);
+                            detrimentalSettledItems.InnerText = READER["TRCS_COUNTOF_INACTIVE"].ToString();
+                            xmlresponse.AppendChild(detrimentalSettledItems);
+
+                            XmlElement detrimentalSettledValue = null;
+                            detrimentalSettledValue = doc_out.CreateElement(prefix, "detrimentalSettledValue", NamspaceURI);
+                            detrimentalSettledValue.InnerText = READER["TRCS_SUMOF_INACTIVE"].ToString();
+                           
+                            xmlresponse.AppendChild(detrimentalSettledValue);
+
+                            root_element.AppendChild(xmlresponse);
                         }
                         READER.Close();
                         con_trust.Close();
 
-                        xmlresponse.InnerText = output;
-
-                        XmlElement xmlrate = null;
-                        xmlrate = doc_out.CreateElement("entityType");
-                        xmlrate.InnerText = "0";
-
-                        int weight = 0;
-
-                        if (output == "True")
-                        {
-                            con_trust.Open();
-                            cmd = new SqlCommand("REALCHECK_PERSON_COMPANY_EXISTS_VODAFONE_RV2", con_trust);
-                            cmd.CommandType = CommandType.StoredProcedure;
-
-                            if (!string.IsNullOrEmpty(companyname))
-                            {
-                                cmd.Parameters.Add(new SqlParameter("@PRS_CMP_COMPANY_NAME", companyname));
-                            }
-                            if (!string.IsNullOrEmpty(firstname))
-                            {
-                                cmd.Parameters.Add(new SqlParameter("@PRS_CMP_FIRSTNAME", firstname));
-                            }
-                            if (!string.IsNullOrEmpty(lastname))
-                            {
-                                cmd.Parameters.Add(new SqlParameter("@PRS_CMP_LASTNAME", lastname));
-                            }
-                            if (!string.IsNullOrEmpty(fathername))
-                            {
-                                cmd.Parameters.Add(new SqlParameter("@PRS_CMP_FATHER_FIRSTNAME", fathername));
-                            }
-                            if (!string.IsNullOrEmpty(IDCARD))
-                            {
-                                cmd.Parameters.Add(new SqlParameter("@PRS_CMP_IDENTIFICATION_CARD", IDCARD));
-                            }
-                            if (!string.IsNullOrEmpty(TAXNUMBER))
-                            {
-                                cmd.Parameters.Add(new SqlParameter("@PRS_CMP_AFM", TAXNUMBER));
-                            }
-
-                            SqlParameter PARAM = new SqlParameter("@RATE", 0);
-                            PARAM.Direction = ParameterDirection.Output;
-                            cmd.Parameters.Add(PARAM);
-                            cmd.Parameters.Add(new SqlParameter("@YEAR", 4));
-                            cmd.ExecuteNonQuery();
-                            weight = Int32.Parse(cmd.Parameters["@RATE"].Value.ToString());
-                            xmlrate.InnerText = weight.ToString();
-
-                            con_trust.Close();
-
-
-                        }
-                        prcmp.AppendChild(xmlresponse);
-
-                        prcmp.AppendChild(xmlrate);
+                     
                         //    KATAXWROUME THN APANTHSH
                         con.Open();
                         cmd = new SqlCommand("INSERT_ANSWER", con);
                         cmd.CommandType = CommandType.StoredProcedure;
                         cmd.Parameters.Add(new SqlParameter("@QUESTION_ID", QUESTION_ID));
                         cmd.Parameters.Add(new SqlParameter("@ANSWER_RESULT", output));
-                        cmd.Parameters.Add(new SqlParameter("@ANSWER_XML", root_element.InnerXml));
-                        cmd.Parameters.Add(new SqlParameter("@ANSWER_RATE", weight.ToString()));
+                        cmd.Parameters.Add(new SqlParameter("@ANSWER_XML", root_element.InnerXml));                     
 
                         cmd.ExecuteNonQuery();
                         con.Close();
@@ -281,7 +285,6 @@ namespace TrustICAPWebService
 
 
                     //   doc_out.Save("c:\inetpub\wwwroot\vodafonewebservice\test.xml")
-
                     return doc_out;
                     //AN DEN VRETHEI PELATHS STELNOUME ERROR KAI PERNAME TO ERWTHMA SAN MH APANTHMENO
                 }

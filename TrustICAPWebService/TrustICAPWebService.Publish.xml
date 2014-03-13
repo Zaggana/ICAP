@@ -1,0 +1,8 @@
+<publishData>
+  <publishTarget publishUrl="http://localhost/TrustICAPWebService/">
+    <file relUrl="bin/TrustICAPWebService.pdb" publishTime="03/13/2014 23:51:07" />
+    <file relUrl="bin/TrustICAPWebService.dll" publishTime="03/13/2014 23:51:07" />
+    <file relUrl="Service1.asmx" publishTime="03/08/2014 08:56:43" />
+    <file relUrl="Web.config" publishTime="03/13/2014 23:07:38" />
+  </publishTarget>
+</publishData>
